@@ -1,6 +1,6 @@
 ---
 name: ck:cook
-description: Implement a planned feature phase by phase. Use when the user says "cook this", "implement it", "let's build", "start coding", or passes a plan.md path. Spec-aware — auto-loads spec.md alongside plan for SDD+TDD. Modes (pick one): --fast (skip test/review), --hard (mandatory human approval). Composable flags (combine with any mode): --no-test (skip tester), --tdd (write failing tests before implementing).
+description: Implement a planned feature phase by phase. Use when the user says "cook this", "implement it", "let's build", "start coding", or passes a plan.md path. Spec-aware — auto-loads spec.md alongside plan for SDD+TDD. Modes (pick one): --fast (skip test/review), --hard (mandatory human approval). Composable flag: --tdd (write failing tests before implementing).
 user-invocable: true
 ---
 
@@ -12,9 +12,10 @@ Modes — mutually exclusive, pick one (default = Standard):
 - **`--hard`** — mandatory test + mandatory review, no auto-approve
 - **`--parallel`** — phases have exclusive File Ownership (from `ck:plan --parallel`); auto-continue between phases (no per-phase review gate), full test + review at end
 
-Composable flags — combine with any mode:
-- **`--no-test`** — skip tester; go directly to Step 3.S → Step 4
+Composable flag — combine with any mode:
 - **`--tdd`** — write failing tests first, then implement until they pass
+
+**Flag default** (no flag given): `--tdd` is off — standard test behavior applied.
 
 ---
 
@@ -90,7 +91,7 @@ Stop if: success criterion unverifiable, unexpected blocker, or phase needs user
 
 ### Step 3 — Test (tester sub-agent)
 
-**`--fast`** / **`--no-test`**: skip → Step 3.S.
+**`--fast`**: skip → Step 3.S.
 
 **[Build Gate]**: verify compilation before tests. On failure: `[GATE FAIL] Build gate: compilation errors — fix before testing.`
 
@@ -130,7 +131,7 @@ Thresholds (`.ck.json` → `simplify.threshold`): `totalLoc` 400, `fileCount` 8,
 
 **`--parallel`**: run code review across all phases at once (not per-phase).
 
-**[Test Gate]**: all tests must pass (or `--no-test` set).
+**[Test Gate]**: all tests must pass (or `--fast` set).
 
 Spawn **`code-reviewer`**: correctness, security, regressions, quality → APPROVED / WARNING / BLOCK.
 - **Standard**: auto-approve if score ≥ 9.5 with 0 CRITICAL
@@ -163,7 +164,7 @@ Uncovered P1:      {list any, or "none"}
 
 | Agent / Skill     | Step | Modes |
 |-------------------|------|-------|
-| `tester`          | 3    | Standard, `--hard`, `--parallel` (skip for `--fast`, `--no-test`) |
+| `tester`          | 3    | Standard, `--hard`, `--parallel` (skip for `--fast`) |
 | `debugger`        | 3    | When tests fail |
 | `simplify` skill  | 3.S  | All (hook-driven) |
 | `code-reviewer`   | 4    | Standard, `--hard`, `--parallel` (skip for `--fast`) |
