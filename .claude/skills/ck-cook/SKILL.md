@@ -7,7 +7,7 @@ user-invocable: true
 # ck:cook — Structured Implementation Pipeline
 
 Modes — mutually exclusive, pick one (default = Standard):
-- **Standard** — test + review, auto-approve if score ≥ 9.5 with 0 CRITICAL
+- **Standard** — test + review; verdict derived from evidence checks, auto-advance on APPROVED
 - **`--fast`** — skip tester and code-reviewer; git-manager only in Step 5
 - **`--hard`** — mandatory test + mandatory review, no auto-approve
 - **`--parallel`** — phases have exclusive File Ownership (from `ck:plan --parallel`); auto-continue between phases (no per-phase review gate), full test + review at end
@@ -16,6 +16,16 @@ Composable flag — combine with any mode:
 - **`--tdd`** — write failing tests first, then implement until they pass
 
 **Flag default** (no flag given): `--tdd` is off — standard test behavior applied.
+
+**Artifacts** — written to the plan directory alongside `plan.md`. Schemas in `templates/`.
+
+| File | Written at |
+|------|-----------|
+| `context-snippets.json` | Step 0.5 |
+| `risk-gate.json` | Step 0.5 |
+| `verification.json` | Step 3 |
+| `review-decision.json` | Step 4 |
+| `adversarial-validation.json` | Step 4 |
 
 ---
 
@@ -26,6 +36,39 @@ When no plan path provided:
 2. If none found → ask: "No plan found. Continue anyway? [y/N]" — if No, suggest `/ck:plan`
 
 After resolving plan path: check for `spec.md` in the same directory. If found, load it — activates **spec-driven mode** for Steps 1 and 2.
+
+---
+
+### Step 0.5 — Design Contract (skip for `--fast`)
+
+Before writing any code, establish a contract the user confirms. Under-specified requests cause the model to fill gaps with high-probability guesses — the contract forces ambiguity to surface before it becomes a bug.
+
+```
+## Design Contract — {Feature Name}
+
+**Output artifacts** (what will exist when done):
+- {exact files/objects — e.g., "src/auth/jwt.service.ts", "POST /api/auth/token → {token, expires}"}
+
+**Acceptance criteria** (testable inputs/outputs, not vibes):
+- Given {input} → expect {output/behavior}
+
+**In scope (will touch):**
+- {explicit file/module list}
+
+**Out of scope (MUST NOT touch):**
+- {explicit list — prevents scope creep}
+
+**Non-negotiable constraints:**
+- {performance, security, compatibility floors — e.g., "no sync I/O on request path", "BCrypt rounds ≥ 12"}
+
+**Touchpoints** (public contracts that change vs. stay stable):
+- {changed}: {before} → {after}
+- {stable}: {contract remains unchanged}
+```
+
+Present the contract and wait for explicit approval before proceeding. If the user modifies scope, update the contract and confirm again.
+
+→ write `context-snippets.json`, `risk-gate.json`
 
 ---
 
@@ -112,6 +155,8 @@ Action:  Awaiting user guidance
 2. Confirm red before implementing
 3. Implement until green, full suite passes
 
+→ write `verification.json`
+
 ---
 
 ### Step 3.S — Auto-Simplify
@@ -133,10 +178,33 @@ Thresholds (`.ck.json` → `simplify.threshold`): `totalLoc` 400, `fileCount` 8,
 
 **[Test Gate]**: all tests must pass (or `--fast` set).
 
-Spawn **`code-reviewer`**: correctness, security, regressions, quality → APPROVED / WARNING / BLOCK.
-- **Standard**: auto-approve if score ≥ 9.5 with 0 CRITICAL
-- **`--hard`**: no auto-approve — human must approve before Step 5
-- Fix/re-review up to 3 cycles (different approach each), then escalate
+Spawn **`code-reviewer`** with minimal context: the code diff + acceptance criteria from the Design Contract (Step 0.5) or spec. Not the full plan, not the full session. The reviewer's job is adversarial — find what broke, not confirm what works.
+
+The verdict is not stated by the reviewer — it is **derived from evidence**. The reviewer runs four evidence-producing checks; the verdict follows mechanically from the results:
+
+**Check 1 — Acceptance criteria** (from Design Contract): for each criterion, run or trace the exact input → confirm the exact expected output. Each criterion is `MET` or `UNMET` with evidence (command output, stack trace, log line).
+
+**Check 2 — Blast radius** (from Step 0.5 Touchpoints): for each caller or downstream dependent listed, confirm it still behaves correctly. Each is `CLEAN` or `BROKEN` with evidence.
+
+**Check 3 — Regression surface**: run tests covering paths adjacent to the change. Report pass/fail counts and any new failures introduced — not "looks fine".
+
+**Check 4 — Adversarial**: attempt to break the implementation — invalid inputs, boundary conditions, concurrent access, missing auth. Each attempt is `HELD` or `BROKEN` with evidence.
+
+**Verdict derived from checks:**
+- All criteria `MET`, all blast radius `CLEAN`, no new test failures, no `BROKEN` adversarial → **APPROVED** → auto-advance (Standard) or wait (--hard)
+- Minor adversarial `BROKEN` with no user-data impact, documented → **WARNING** → auto-advance with notice (Standard) or wait (--hard)
+- Any criterion `UNMET`, any blast radius `BROKEN`, new test failure, or critical adversarial `BROKEN` → **BLOCK** → enter fix cycle
+
+→ write `review-decision.json`, `adversarial-validation.json`
+
+**Fix cycle**: up to 3 cycles, each must use a different approach. After cycle 3 with no APPROVED: hard-stop. Do not retry. Surface to user:
+
+```
+[HARD BLOCK] Review gate: 3 cycles exhausted without APPROVED verdict
+Last verdict: BLOCK
+Critical finding: {exact issue}
+Action required: human decision needed before proceeding
+```
 
 ---
 
