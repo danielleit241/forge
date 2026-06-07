@@ -37,6 +37,13 @@ When no plan path provided:
 
 After resolving plan path: check for `spec.md` in the same directory. If found, load it — activates **spec-driven mode** for Steps 1 and 2.
 
+**Spec-first rule** (applies whenever spec.md is loaded): spec is the source of truth. If the user wants to change behavior, they edit the spec — code follows. If a request to cook would contradict a P1 spec item without an updated spec, surface it:
+```
+[SPEC CONFLICT] This phase contradicts US-02 (spec.md).
+Edit spec first? [Y/n]
+```
+Do not proceed until the spec is updated or the user explicitly overrides.
+
 ---
 
 ### Step 0.5 — Design Contract (skip for `--fast`)
@@ -216,13 +223,25 @@ Action required: human decision needed before proceeding
 
 **`docs-manager`** (skip `--fast`): update docs, README, API contracts.
 
-**If spec loaded**: output before git-manager:
+**If spec loaded** — run **Spec Sync** before git-manager:
+
+1. For each completed phase, read its `## Covers` IDs and compare against spec.md items
+2. For each covered spec item, check if:
+   - Acceptance criteria wording matches what was actually implemented — if more specific/nuanced now, **update spec to match**
+   - A new edge case or constraint was discovered during implementation — **add to spec as NFR or acceptance condition**
+   - An item was found to be out of scope or split differently — **update spec Out of Scope / P3 accordingly**
+3. Bump spec `Status:` to `Approved` if all P1 items are covered and verified
+
+Output:
 ```
-# Spec Coverage
-P1 stories:        {N}/{total} covered
-Success criteria:  {N}/{total} verifiable
-Uncovered P1:      {list any, or "none"}
+# Spec Sync
+Updated: {N} items refined in spec.md
+  - US-02: acceptance criteria tightened (added rate-limit condition)
+  - FR-03: marked Approved after verification
+Uncovered P1: {list any, or "none"}
 ```
+
+Edit `spec.md` directly with the changes before proceeding to git-manager. The spec commit lands in the same commit as the implementation.
 
 **`git-manager`** (always): conventional commits → ask to push.
 

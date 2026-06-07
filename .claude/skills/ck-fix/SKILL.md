@@ -62,6 +62,31 @@ Without a confirmed Delta, any fix is symptom-addressing, not root-cause-address
 
 ---
 
+### Step 1.5 — Spec Anchor (skip `--fast`, skip if no spec.md)
+
+After scout completes, check if a `spec.md` exists in the same plan directory (or `plans/*/spec.md` adjacent to any active plan).
+
+If spec found, answer two questions:
+
+**Q1 — Is this bug a spec gap?**
+- Scan spec items (US-xx, FR-xx) — does any acceptance criterion cover the broken behavior?
+- If yes: the bug is a regression — the fix must restore spec compliance, not negotiate a new behavior
+- If no: the behavior was never specified — **this is a spec gap**, not just a bug
+
+**Q2 — Spec-first decision:**
+- **Regression** → proceed to Step 2; fix must satisfy the spec item's acceptance condition
+- **Spec gap** → before writing any code, add a new acceptance criterion to the relevant spec item (or new item if entirely missing); this becomes the acceptance condition the fix must satisfy
+
+```
+# Spec Anchor
+Bug type:     Regression | Spec gap
+Spec item:    US-02 (regression) | none found (gap)
+Action:       Fix must satisfy US-02 acceptance condition
+              OR: spec.md updated — added US-05 · P1 covering {edge case}
+```
+
+Do not write any fix code until the spec anchor is established.
+
 ### Step 2 — Diagnose
 
 Spawn **`debugger`** with a minimal handoff — scout evidence only, not the full conversation. The debugger needs: error pattern, affected files, temporal context, blast radius, confirmed delta. Nothing more. Excess context dilutes attention on the actual evidence.
@@ -137,6 +162,14 @@ Action required: human decision needed before proceeding
 
 **`project-manager`** (skip `--fast`): sync plan progress if bug was tracked.
 **`docs-manager`** (skip `--fast`): update docs if fix changes a public contract.
+
+**Spec Sync** (skip `--fast`, skip if no spec.md): finalize spec changes from Step 1.5:
+- If spec gap was added → confirm the new spec item's acceptance condition is now satisfied by the fix
+- If regression fix → confirm the spec item's acceptance condition is met and mark it verified
+- If fix revealed additional edge cases not in spec → add them as acceptance conditions now
+
+Edit `spec.md` directly. The spec update commits alongside the fix.
+
 **`git-manager`** (always): conventional commit + ask to push.
 
 ```
@@ -158,4 +191,5 @@ Action required: human decision needed before proceeding
 | Bash                | Step 2.5   | Runtime confirmation: repro, positive path, blast radius tests |
 | `project-manager`   | Step 4     | Standard, `--hard` (skip `--fast`) |
 | `docs-manager`      | Step 4     | Standard, `--hard` (skip `--fast`) |
+| Spec Sync           | Step 1.5 + 4 | When spec.md present; skip `--fast` |
 | `git-manager`       | Step 4     | Always (mandatory) |
