@@ -1,5 +1,5 @@
 ---
-name: ck:cook
+name: ck-cook
 description: Implement a planned feature phase by phase. Use when the user says "cook this", "implement it", "let's build", "start coding", or passes a plan.md path. Spec-aware — auto-loads spec.md alongside plan for SDD+TDD. Modes (pick one): --fast (skip test/review), --hard (mandatory human approval). Composable flag: --tdd (write failing tests before implementing).
 user-invocable: true
 ---
