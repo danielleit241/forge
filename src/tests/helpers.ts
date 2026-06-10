@@ -33,7 +33,7 @@ export async function writeFixture(root: string, manifest: ToolkitManifest): Pro
   );
   await fs.writeFile(
     path.join(root, ".claude", "agents", "reviewer.md"),
-    "---\nname: reviewer\ndescription: Review code.\n---\n\nReview carefully.\n",
+    "---\nname: reviewer\ndescription: Review code.\nmodel: sonnet\n---\n\nReview carefully.\n",
   );
   await fs.writeFile(path.join(root, ".claude", "hooks", "stop.py"), "print('ok')\n");
 }

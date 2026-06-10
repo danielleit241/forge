@@ -1,6 +1,6 @@
 {
   "name": "@danielleit241/my-skills",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Versioned CLI for installing and migrating AI agent toolkits",
   "repository": {
     "type": "git",

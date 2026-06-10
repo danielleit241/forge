@@ -48,9 +48,10 @@ All mutating commands support `--dry-run`. Managed files are overwritten or remo
 The Claude adapter preserves the `.claude/` layout. The Codex adapter maps:
 
 - Skills and slash commands to `.agents/skills/`.
-- Sub-agents to `.codex/agents/*.toml`.
-- Hooks to `.codex/hooks.json` and scripts to `.codex/hooks/`.
+- Sub-agents to `.codex/agents/*.toml`, including Codex model and reasoning defaults derived from the Claude role.
+- Hooks to `.codex/hooks.json` and scripts to `.codex/hooks/`; unsupported Claude tool matchers are removed and commands resolve from the Git root on Unix and Windows.
 - `CLAUDE.md` to `AGENTS.md`.
+- Project defaults to `.codex/config.toml`, with hooks enabled and bounded subagent concurrency.
 
 Items without a direct target mapping are reported as `unsupported` rather than silently dropped.
 

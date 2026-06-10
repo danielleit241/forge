@@ -159,10 +159,12 @@ async function convertAgents(
     const name = String(parsed.data.name ?? path.basename(sourcePath, ".md"));
     const description = String(parsed.data.description ?? `Migrated agent ${name}`);
     const body = parsed.content.trim();
+    const modelConfig = mapClaudeModel(parsed.data.model);
     const toml = [
       `name = ${tomlString(name)}`,
       `description = ${tomlString(description)}`,
       `developer_instructions = ${tomlMultiline(body)}`,
+      ...modelConfig,
       "",
     ].join("\n");
     const targetPath = `.codex/agents/${name}.toml`;
@@ -180,7 +182,7 @@ async function convertHooks(
   const settingsPath = path.join(sourceRoot, ".claude", "settings.json");
   const settings = JSON.parse(await fs.readFile(settingsPath, "utf8")) as Record<string, unknown>;
   const hooks = structuredClone((settings.hooks ?? {}) as Record<string, unknown>);
-  rewriteHookCommands(hooks);
+  normalizeCodexHooks(hooks, result);
   const targetPath = ".codex/hooks.json";
   result.files.push({
     path: targetPath,
@@ -190,22 +192,70 @@ async function convertHooks(
   result.converted.push(`.claude/settings.json hooks -> ${targetPath}`);
 }
 
-function rewriteHookCommands(value: unknown): void {
+function normalizeCodexHooks(hooks: Record<string, unknown>, result: RenderResult): void {
+  for (const [event, groupsValue] of Object.entries(hooks)) {
+    if (!Array.isArray(groupsValue)) continue;
+    const normalizedGroups: unknown[] = [];
+    for (const groupValue of groupsValue) {
+      if (!groupValue || typeof groupValue !== "object") continue;
+      const group = groupValue as Record<string, unknown>;
+      const matcher = normalizeMatcher(event, group.matcher);
+      if (matcher === null) {
+        result.skipped.push(`hook ${event} matcher ${String(group.matcher)} (no Codex tool equivalent)`);
+        continue;
+      }
+      if (matcher === undefined) delete group.matcher;
+      else group.matcher = matcher;
+      rewriteHookHandlers(group);
+      normalizedGroups.push(group);
+    }
+    hooks[event] = normalizedGroups;
+  }
+}
+
+function rewriteHookHandlers(value: unknown): void {
   if (Array.isArray(value)) {
-    for (const item of value) rewriteHookCommands(item);
+    for (const item of value) rewriteHookHandlers(item);
     return;
   }
   if (!value || typeof value !== "object") return;
   const record = value as Record<string, unknown>;
   if (typeof record.command === "string") {
-    const command = record.command.replaceAll(".claude/hooks/", ".codex/hooks/");
-    record.command = command;
-    record.commandWindows = `powershell -NoProfile -Command '$root = git rev-parse --show-toplevel; ${command
-      .replace("python .codex/", "python (Join-Path $root \".codex/")
-      .replace(/\.py$/, ".py\")")}'`;
+    const script = extractHookScript(record.command);
+    if (script) {
+      record.command = `python3 "$(git rev-parse --show-toplevel)/.codex/hooks/${script}"`;
+      record.commandWindows =
+        `powershell -NoProfile -Command '$root = git rev-parse --show-toplevel; ` +
+        `python (Join-Path $root ".codex/hooks/${script}")'`;
+    }
   }
   if (record.async === true) delete record.async;
-  for (const child of Object.values(record)) rewriteHookCommands(child);
+  for (const child of Object.values(record)) rewriteHookHandlers(child);
+}
+
+function normalizeMatcher(event: string, value: unknown): string | undefined | null {
+  if (event === "UserPromptSubmit" || event === "Stop") return undefined;
+  if (value === undefined || value === "" || value === "*") return "*";
+  if (typeof value !== "string") return null;
+
+  if (event === "PreToolUse" || event === "PostToolUse" || event === "PermissionRequest") {
+    const mapped = value
+      .split("|")
+      .map((item) => item.trim())
+      .flatMap((item) => {
+        if (item === "Bash") return ["Bash"];
+        if (item === "Write" || item === "Edit") return [item];
+        if (item.startsWith("mcp__")) return [item];
+        return [];
+      });
+    return [...new Set(mapped)].join("|") || null;
+  }
+  return value;
+}
+
+function extractHookScript(command: string): string | null {
+  const match = command.replaceAll("\\", "/").match(/\.claude\/hooks\/([^"' )]+\.py)/);
+  return match?.[1] ?? null;
 }
 
 async function convertConfig(
@@ -224,7 +274,17 @@ async function convertConfig(
   }
   result.files.push({
     path: ".codex/config.toml",
-    content: Buffer.from("[features]\nhooks = true\n"),
+    content: Buffer.from(
+      [
+        "[features]",
+        "hooks = true",
+        "",
+        "[agents]",
+        "max_threads = 6",
+        "max_depth = 1",
+        "",
+      ].join("\n"),
+    ),
     component,
   });
   result.converted.push(".claude/settings.json -> .codex/config.toml");
@@ -244,4 +304,14 @@ function tomlString(value: string): string {
 
 function tomlMultiline(value: string): string {
   return `'''${value.replaceAll("'''", "''\\'")}'''`;
+}
+
+function mapClaudeModel(value: unknown): string[] {
+  if (value === "haiku") {
+    return ['model = "gpt-5.4-mini"', 'model_reasoning_effort = "medium"'];
+  }
+  if (value === "sonnet" || value === "opus") {
+    return ['model = "gpt-5.5"', 'model_reasoning_effort = "high"'];
+  }
+  return [];
 }

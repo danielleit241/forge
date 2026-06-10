@@ -63,8 +63,14 @@ test("Codex adapter converts skills, commands, agents, hooks, and instructions",
     fs.access(path.join(target, "AGENTS.md")),
   ]);
   const hooks = await fs.readFile(path.join(target, ".codex", "hooks.json"), "utf8");
-  assert.match(hooks, /\.codex\/hooks\/stop\.py/);
+  assert.match(hooks, /git rev-parse --show-toplevel/);
+  assert.match(hooks, /commandWindows/);
   assert.doesNotMatch(hooks, /"async"/);
+  assert.doesNotMatch(hooks, /"matcher": "\*"/);
+  const agent = await fs.readFile(path.join(target, ".codex", "agents", "reviewer.toml"), "utf8");
+  assert.match(agent, /model = "gpt-5\.5"/);
+  const config = await fs.readFile(path.join(target, ".codex", "config.toml"), "utf8");
+  assert.match(config, /\[agents\]\nmax_threads = 6\nmax_depth = 1/);
 });
 
 function install(sourceRoot: string, targetRoot: string, targetAgent: "claude" | "codex") {
