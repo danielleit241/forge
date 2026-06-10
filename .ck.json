@@ -26,6 +26,9 @@
     "enabled": true,
     "allowList": []
   },
+  "artifactGate": {
+    "enabled": false
+  },
   "simplify": {
     "threshold": {
       "enabled": true,

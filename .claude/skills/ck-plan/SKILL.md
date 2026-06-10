@@ -12,11 +12,14 @@ user-invocable: true
 | ------------ | -------------------------------- | ------------ | ----------- | -------------------------------- |
 | `--fast`     | —                                | —            | —           | `/ck:cook --fast`                |
 | `--hard`     | 2 researchers                    | ✓            | ✓ (wait)    | `/ck:cook --hard`                |
+| `--deep`     | 2 researchers (deeper budget)    | ✓ (targeted) | ✓ (wait)    | `/ck:cook --hard [--tdd]`        |
 | `--two`      | 2 researchers (one per approach) | ✓ both plans | pick A or B | `/ck:cook [user-chosen mode]`    |
 | `--parallel` | 2 researchers                    | ✓            | optional    | `/ck:cook --parallel`            |
 | `--auto`     | 1 researcher                     | ✓            | ✓ (wait)    | auto-invoke cook (detected mode) |
 
-**Auto-detect** (no mode given): Fast if single-file / familiar / ≤ 2 components; Hard otherwise.
+**`--deep`** — for multi-module refactors and high-risk changes: like `--hard` but researchers get a deeper budget, validation is stronger, and the planner adds an **evidence-backed justification** to each phase (why this step, what it touches, how it's verified). Recommended with `--tdd`. Behavioral extension inspired by ck gốc's `--deep`; not a verified 1:1 parity of an upstream spec.
+
+**Auto-detect** (no mode given): Fast if single-file / familiar / ≤ 2 components; Hard otherwise; suggest `--deep` if the change spans 3+ modules or touches auth/data/migrations.
 
 **Flag defaults** (no composable flags given): `--tdd` and `--no-task` are both off — no special behavior applied.
 

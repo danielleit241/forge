@@ -15,6 +15,11 @@ import os
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent / "lib"))
+from hook_logger import HookLogger
+
+_log = HookLogger("simplify-gate")
+
 
 def _find_repo_root(cwd: str) -> Path | None:
     for parent in [Path(cwd)] + list(Path(cwd).parents):
@@ -125,5 +130,5 @@ def main() -> None:
 if __name__ == "__main__":
     try:
         main()
-    except Exception:
-        pass
+    except Exception as e:
+        _log.error(f"unhandled → fail-open: {e}")

@@ -9,6 +9,7 @@ user-invocable: true
 Modes — mutually exclusive, pick one (default = Standard: auto-advance on APPROVED verdict with no critical findings):
 - **`--fast`** — trivial issues (lint, type errors, build errors); skip scout, review, docs
 - **`--hard`** — mandatory review, no auto-advance
+- **`--parallel`** — multiple *independent* failures with disjoint touchpoints (no shared file/module): spawn one fix lane per failure (each runs Scout→Diagnose→Fix on its own touchpoints), then a single combined review at the end. Only use when failures provably don't share state — overlapping touchpoints must stay sequential.
 
 **Activation baseline** — active throughout the entire pipeline regardless of mode:
 - `sequential-thinking` — frames every reasoning step; prevents attention drift and premature conclusion
@@ -193,3 +194,4 @@ Edit `spec.md` directly. The spec update commits alongside the fix.
 | `docs-manager`      | Step 4     | Standard, `--hard` (skip `--fast`) |
 | Spec Sync           | Step 1.5 + 4 | When spec.md present; skip `--fast` |
 | `git-manager`       | Step 4     | Always (mandatory) |
+| parallel lanes      | All steps  | `--parallel` only — one lane per independent failure (disjoint touchpoints) |

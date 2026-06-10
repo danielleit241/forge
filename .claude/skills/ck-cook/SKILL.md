@@ -105,6 +105,8 @@ When no plan file provided: read the feature request, ask 2–3 clarifying quest
 
 ### Step 2 — Implement
 
+**Activate the artifact gate** (skip `--fast`): write `.claude/session-data/cook-active.json` = `{ "plan_dir": "{absolute plan dir}", "phase_active": true }`. This signals `workflow_artifact_gate.py` (PreToolUse) that a cook is running and the 5 artifacts must exist — without this flag the gate fails open (never blocks). The gate skips writes to `session-data/` itself, so writing this flag does not trip it. Requires `.ck.json` → `artifactGate.enabled: true` to actually enforce.
+
 For each `phase-XX-*.md` in order:
 
 1. Read phase file — understand requirements, architecture, steps, success criteria
@@ -218,6 +220,8 @@ Action required: human decision needed before proceeding
 ### Step 5 — Finalize (MANDATORY)
 
 **[Approval Gate]**: code-reviewer APPROVED required (or `--fast` bypass).
+
+**Deactivate the artifact gate**: set `phase_active: false` in `.claude/session-data/cook-active.json` (or delete the file) so the gate stops enforcing once the cook is done. Skip if `--fast` (flag was never written).
 
 **`project-manager`** (skip `--fast`): mark phases `[x]`, update plan status.
 

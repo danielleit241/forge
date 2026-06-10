@@ -18,6 +18,11 @@ import re
 import subprocess
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent / "lib"))
+from hook_logger import HookLogger
+
+log = HookLogger("build-check")
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -126,7 +131,8 @@ CHECKERS: dict[str, callable] = {
 def main() -> None:
     try:
         data = json.load(sys.stdin)
-    except Exception:
+    except Exception as e:
+        log.error(f"stdin parse failed → fail-open: {e}")
         return
 
     raw_path = data.get("tool_input", {}).get("file_path", "")
@@ -141,7 +147,11 @@ def main() -> None:
 
     try:
         error_msg = checker(file_path)
-    except (FileNotFoundError, subprocess.TimeoutExpired):
+    except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+        log.error(f"{suffix} checker skipped ({type(e).__name__}) → fail-open: {e}")
+        return
+    except Exception as e:
+        log.error(f"{suffix} checker crashed → fail-open: {e}")
         return
 
     if error_msg:
@@ -154,4 +164,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        log.error(f"unhandled → fail-open: {e}")
+        sys.exit(0)
