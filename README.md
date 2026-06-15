@@ -25,16 +25,22 @@ my-skills setup
 Non-interactive installation remains available:
 
 ```bash
-npx @danielle241/my-skills init <project-path> --agent claude --bundle full
-npx @danielle241/my-skills init <project-path> --agent codex --bundle full
+npx @danielle241/my-skills init --project-root --agent claude --bundle full
+npx @danielle241/my-skills init --project-path D:\Capstone\Project\src --agent codex --bundle full
 ```
+
+Use `--project-root` to treat the current working directory as the exact
+installation root. Use `--project-path` for any file or nested directory inside a project;
+the CLI walks upward to the nearest `.git`, `package.json`, `pyproject.toml`,
+`Cargo.toml`, or `go.mod`. The positional `[target]` remains available as a
+legacy exact-target argument.
 
 ## CLI Commands
 
 | Command | Purpose |
 | --- | --- |
-| `setup [target]` | Start onboarding and choose an operation interactively. |
-| `init [target]` | Install selected bundles for Claude or Codex and create `.my-skills.lock.json`. |
+| `setup [target]` | Start the visual onboarding wizard and choose an operation interactively. |
+| `init [target]` | Install selected bundles; supports `--project-root` and `--project-path`. |
 | `update [version] [target]` | Update from the npm registry. The default is `latest`; `--source` uses local Git tags. |
 | `migrate [target] --from claude --to codex` | Render the installed bundles with another agent adapter. |
 | `revert <version> [target]` | Restore files from a previous SemVer Git tag without resetting the target repository. |

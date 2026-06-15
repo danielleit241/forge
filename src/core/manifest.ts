@@ -7,6 +7,15 @@ export async function loadManifest(sourceRoot: string): Promise<ToolkitManifest>
   const file = path.join(sourceRoot, "toolkit.manifest.json");
   const manifest = JSON.parse(await fs.readFile(file, "utf8")) as ToolkitManifest;
   validateManifest(manifest);
+  for (const component of manifest.components) {
+    for (const componentPath of component.paths) {
+      try {
+        await fs.access(path.join(sourceRoot, componentPath));
+      } catch {
+        throw new Error(`Manifest path does not exist: ${componentPath}`);
+      }
+    }
+  }
   return manifest;
 }
 

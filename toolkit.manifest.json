@@ -38,7 +38,7 @@
     {
       "id": "rules",
       "type": "rule",
-      "paths": [".claude/rules", ".claude/contexts", ".claude/coding-levels"],
+      "paths": [".claude/rules", ".claude/coding-levels"],
       "adapters": ["claude"]
     }
   ],

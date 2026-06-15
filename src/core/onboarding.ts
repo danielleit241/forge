@@ -1,8 +1,10 @@
 import path from "node:path";
-import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
+import * as p from "@clack/prompts";
+import pc from "picocolors";
 import type { AgentName } from "../types.js";
 import { exists } from "./files.js";
+import { findProjectRoot } from "./project.js";
 
 export type OnboardingAction = "init" | "update" | "migrate" | "status" | "validate";
 
@@ -17,28 +19,78 @@ export interface OnboardingSelection {
 
 export async function runOnboarding(defaultTarget = "."): Promise<OnboardingSelection | null> {
   if (!stdin.isTTY || !stdout.isTTY) return null;
-  const prompt = createInterface({ input: stdin, output: stdout });
-  try {
-    const targetRoot = path.resolve(await ask(prompt, "Project path", defaultTarget));
-    const detected = await detectAgents(targetRoot);
-    console.log(`Detected: ${detected.length ? detected.join(", ") : "no existing agent folders"}`);
-    const action = await choose(prompt, "Action", ["init", "update", "migrate", "status", "validate"]);
-    if (action === "init") {
-      const defaultAgent = detected[0] ?? "claude";
-      const agent = await choose(prompt, "Target agent", ["claude", "codex"], defaultAgent);
-      const bundles = (await ask(prompt, "Bundles (comma separated)", "full"))
-        .split(",").map((item) => item.trim()).filter(Boolean);
-      return { action, targetRoot, agent, bundles };
-    }
-    if (action === "migrate") {
-      const from = await choose(prompt, "Source agent", ["claude", "codex"], detected[0] ?? "claude");
-      const to = from === "claude" ? "codex" : "claude";
-      return { action, targetRoot, from, to, bundles: ["full"] };
-    }
-    return { action, targetRoot, bundles: ["full"] };
-  } finally {
-    prompt.close();
+  p.intro(pc.bgCyan(pc.black(" my-skills setup ")));
+  const targetMode = unwrap(await p.select({
+    message: "How should the project target be resolved?",
+    options: [
+      { value: "root", label: "Current folder", hint: "treat the working directory as project root" },
+      { value: "path", label: "Path inside project", hint: "auto-detect the project root" },
+    ],
+    initialValue: "root",
+  }));
+  const targetRoot = targetMode === "root"
+    ? process.cwd()
+    : await findProjectRoot(unwrap(await p.text({
+      message: "File or directory inside the project",
+      defaultValue: defaultTarget,
+      placeholder: defaultTarget,
+      validate: (value) => value.trim() ? undefined : "A project path is required",
+    })));
+  const detected = await detectAgents(targetRoot);
+  p.note(
+    [
+      `${pc.dim("Root")}     ${pc.cyan(targetRoot)}`,
+      `${pc.dim("Detected")} ${detected.length ? detected.join(", ") : "no existing agent folders"}`,
+    ].join("\n"),
+    "Project",
+  );
+  const action = unwrap(await p.select<OnboardingAction>({
+    message: "What do you want to do?",
+    options: [
+      { value: "init", label: "Initialize toolkit" },
+      { value: "update", label: "Update toolkit" },
+      { value: "migrate", label: "Migrate agent format" },
+      { value: "status", label: "Show status" },
+      { value: "validate", label: "Validate installation" },
+    ],
+  }));
+  if (action === "init") {
+    const defaultAgent = detected[0] ?? "claude";
+    const agent = unwrap(await p.select<AgentName>({
+      message: "Target agent",
+      options: [
+        { value: "claude", label: "Claude Code" },
+        { value: "codex", label: "Codex" },
+      ],
+      initialValue: defaultAgent,
+    }));
+    const bundle = unwrap(await p.select<string>({
+      message: "Bundle to install",
+      options: [
+        { value: "full", label: "Full", hint: "all toolkit components" },
+        { value: "development", label: "Development", hint: "core, skills, commands, agents" },
+        { value: "skills", label: "Skills only" },
+      ],
+      initialValue: "full",
+    }));
+    await confirmSelection(targetRoot, action);
+    return { action, targetRoot, agent, bundles: [bundle] };
   }
+  if (action === "migrate") {
+    const from = unwrap(await p.select<AgentName>({
+      message: "Source agent",
+      options: [
+        { value: "claude", label: "Claude Code" },
+        { value: "codex", label: "Codex" },
+      ],
+      initialValue: detected[0] ?? "claude",
+    }));
+    const to = from === "claude" ? "codex" : "claude";
+    await confirmSelection(targetRoot, action);
+    return { action, targetRoot, from, to, bundles: ["full"] };
+  }
+  await confirmSelection(targetRoot, action);
+  return { action, targetRoot, bundles: ["full"] };
 }
 
 async function detectAgents(targetRoot: string): Promise<AgentName[]> {
@@ -48,22 +100,26 @@ async function detectAgents(targetRoot: string): Promise<AgentName[]> {
   return agents;
 }
 
-async function ask(
-  prompt: ReturnType<typeof createInterface>,
-  label: string,
-  defaultValue: string,
-): Promise<string> {
-  const answer = (await prompt.question(`${label} [${defaultValue}]: `)).trim();
-  return answer || defaultValue;
+async function confirmSelection(targetRoot: string, action: OnboardingAction): Promise<void> {
+  const confirmed = unwrap(await p.confirm({
+    message: `${capitalize(action)} in ${targetRoot}?`,
+    initialValue: true,
+  }));
+  if (!confirmed) {
+    p.cancel("Setup cancelled.");
+    throw new Error("Setup cancelled");
+  }
+  p.outro(pc.green("Configuration complete"));
 }
 
-async function choose<T extends string>(
-  prompt: ReturnType<typeof createInterface>,
-  label: string,
-  choices: readonly T[],
-  defaultValue: T = choices[0],
-): Promise<T> {
-  const answer = await ask(prompt, `${label} (${choices.join("/")})`, defaultValue);
-  if (!choices.includes(answer as T)) throw new Error(`Invalid ${label.toLowerCase()}: ${answer}`);
-  return answer as T;
+function unwrap<T>(value: T | symbol): T {
+  if (p.isCancel(value)) {
+    p.cancel("Setup cancelled.");
+    throw new Error("Setup cancelled");
+  }
+  return value as T;
+}
+
+function capitalize(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }

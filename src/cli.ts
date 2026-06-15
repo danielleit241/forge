@@ -7,6 +7,7 @@ import { getAdapter } from "./adapters/index.js";
 import { installToolkit, inspectStatus } from "./core/engine.js";
 import { loadManifest } from "./core/manifest.js";
 import { runOnboarding } from "./core/onboarding.js";
+import { resolveProjectTarget } from "./core/project.js";
 import {
   latestPackageVersion,
   latestTag,
@@ -32,9 +33,12 @@ program
 program
   .command("setup")
   .description("Start the interactive onboarding wizard")
-  .argument("[target]", "Target project", ".")
-  .action(async (target) => {
-    const selection = await runOnboarding(target);
+  .argument("[target]", "Target project")
+  .addOption(projectPathOption())
+  .addOption(projectRootOption())
+  .action(async (target, options) => {
+    const initialTarget = await resolveProjectTarget(target, options);
+    const selection = await runOnboarding(initialTarget);
     if (!selection) throw new Error("Interactive setup requires a TTY");
     switch (selection.action) {
       case "init":
@@ -58,15 +62,18 @@ program
 program
   .command("init")
   .description("Install the toolkit into a project")
-  .argument("[target]", "Target project", ".")
+  .argument("[target]", "Target project (legacy shorthand for --project-root)")
+  .addOption(projectPathOption())
+  .addOption(projectRootOption())
   .addOption(agentOption())
   .option("-b, --bundle <name...>", "Bundles to install", ["full"])
   .option("--source <path>", "Toolkit source")
   .option("--dry-run", "Preview without writing")
   .option("--force", "Overwrite local conflicts")
   .action(async (target, options) => {
+    const targetRoot = await resolveProjectTarget(target, options);
     await runInstall(
-      path.resolve(target),
+      targetRoot,
       options.agent,
       options.bundle,
       options.source ? path.resolve(options.source) : repositoryRoot,
@@ -185,6 +192,17 @@ program.parseAsync().catch((error: unknown) => {
 function agentOption(required = true): Option {
   const option = new Option("-a, --agent <agent>", "Target agent").argParser(parseAgent);
   return required ? option.makeOptionMandatory() : option;
+}
+
+function projectPathOption(): Option {
+  return new Option(
+    "--project-path <path>",
+    "File or directory inside a project; detect its root automatically",
+  );
+}
+
+function projectRootOption(): Option {
+  return new Option("--project-root", "Treat the current working directory as the project root");
 }
 
 function parseAgent(value: string): AgentName {
