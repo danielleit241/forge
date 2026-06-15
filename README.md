@@ -9,7 +9,7 @@ A personal Claude Code configuration — slash commands, sub-agents, skills, and
 Requires Node.js 20 or newer.
 
 ```bash
-npx @danielleit241/my-skills
+npx @danielle241/my-skills
 ```
 
 This starts the onboarding wizard. It detects existing `.claude` and `.codex`
@@ -18,15 +18,15 @@ folders and offers `init`, `update`, `migrate`, `status`, and `validate`.
 Install the CLI globally when preferred:
 
 ```bash
-npm install --global @danielleit241/my-skills
+npm install --global @danielle241/my-skills
 my-skills setup
 ```
 
 Non-interactive installation remains available:
 
 ```bash
-npx @danielleit241/my-skills init <project-path> --agent claude --bundle full
-npx @danielleit241/my-skills init <project-path> --agent codex --bundle full
+npx @danielle241/my-skills init <project-path> --agent claude --bundle full
+npx @danielle241/my-skills init <project-path> --agent codex --bundle full
 ```
 
 ## CLI Commands
@@ -59,8 +59,8 @@ conflict and text diff; use `--force` only when discarding that edit is intentio
 Migrate an existing installation:
 
 ```bash
-npx @danielleit241/my-skills migrate <project-path> --from claude --to codex --dry-run
-npx @danielleit241/my-skills migrate <project-path> --from claude --to codex
+npx @danielle241/my-skills migrate <project-path> --from claude --to codex --dry-run
+npx @danielle241/my-skills migrate <project-path> --from claude --to codex
 ```
 
 The Claude adapter preserves the `.claude/` layout. The Codex adapter maps:
@@ -76,10 +76,10 @@ Items without a direct target mapping are reported as `unsupported` rather than 
 ## Update And Recovery
 
 ```bash
-npx @danielleit241/my-skills status <project-path>
-npx @danielleit241/my-skills update latest <project-path> --dry-run
-npx @danielleit241/my-skills update latest <project-path>
-npx @danielleit241/my-skills revert 2.0.0 <project-path>
+npx @danielle241/my-skills status <project-path>
+npx @danielle241/my-skills update latest <project-path> --dry-run
+npx @danielle241/my-skills update latest <project-path>
+npx @danielle241/my-skills revert 2.0.0 <project-path>
 ```
 
 Writes use a filesystem transaction. If a write fails, earlier writes in that operation are restored. The CLI never commits or resets the target repository.
@@ -95,12 +95,12 @@ version. Tags matching `v*.*.*` trigger `.github/workflows/release.yml`.
 
 ```bash
 npm run release:check
-git tag v2.1.0
-git push origin v2.1.0
+git tag v2.1.1
+git push origin v2.1.1
 ```
 
 The GitHub repository must provide npm trusted publishing or an `NPM_TOKEN`
-secret with publish access to `@danielleit241/my-skills`.
+secret with publish access to `@danielle241/my-skills`.
 
 ---
 

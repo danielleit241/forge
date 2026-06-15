@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.1.1
+
+- Correct the npm package scope to `@danielle241/my-skills`.
+
 ## 2.1.0
 
 - Add interactive onboarding through `my-skills setup` and the default no-command flow.
