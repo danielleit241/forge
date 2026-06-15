@@ -4,6 +4,7 @@ import * as p from "@clack/prompts";
 import pc from "picocolors";
 import type { AgentName } from "../types.js";
 import { exists } from "./files.js";
+import { readLock } from "./lock.js";
 import { findProjectRoot } from "./project.js";
 
 export type OnboardingAction = "init" | "update" | "migrate" | "status" | "validate";
@@ -77,15 +78,21 @@ export async function runOnboarding(defaultTarget = "."): Promise<OnboardingSele
     return { action, targetRoot, agent, bundles: [bundle] };
   }
   if (action === "migrate") {
-    const from = unwrap(await p.select<AgentName>({
-      message: "Source agent",
-      options: [
-        { value: "claude", label: "Claude Code" },
-        { value: "codex", label: "Codex" },
-      ],
-      initialValue: detected[0] ?? "claude",
-    }));
+    const lock = await readLock(targetRoot);
+    const inferred = inferMigrationSource(lock?.targetAgent, detected);
+    const from = inferred ?? unwrap(await p.select<AgentName>({
+        message: "Source agent",
+        options: [
+          { value: "claude", label: "Claude Code" },
+          { value: "codex", label: "Codex" },
+        ],
+        initialValue: detected[0] ?? "claude",
+      }));
     const to = from === "claude" ? "codex" : "claude";
+    p.note(
+      `${agentLabel(from)} ${pc.dim("->")} ${agentLabel(to)}`,
+      lock ? "Migration from lockfile" : "Migration",
+    );
     await confirmSelection(targetRoot, action);
     return { action, targetRoot, from, to, bundles: ["full"] };
   }
@@ -122,4 +129,16 @@ function unwrap<T>(value: T | symbol): T {
 
 function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+export function inferMigrationSource(
+  lockAgent: AgentName | undefined,
+  detected: AgentName[],
+): AgentName | undefined {
+  if (lockAgent) return lockAgent;
+  return detected.length === 1 ? detected[0] : undefined;
+}
+
+function agentLabel(agent: AgentName): string {
+  return agent === "claude" ? "Claude Code" : "Codex";
 }

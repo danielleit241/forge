@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Infer migration source from the lockfile so onboarding cannot select an agent that contradicts the installed toolkit.
+
 ## 2.1.2
 
 - Add a colored, keyboard-driven onboarding wizard with selectable actions, agents, and bundles.

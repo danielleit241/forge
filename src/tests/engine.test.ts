@@ -73,6 +73,22 @@ test("Codex adapter converts skills, commands, agents, hooks, and instructions",
   assert.match(config, /\[agents\]\nmax_threads = 6\nmax_depth = 1/);
 });
 
+test("migration changes an installed Claude toolkit to Codex", async () => {
+  const source = await tempDir("my-skills-source-");
+  const target = await tempDir("my-skills-target-");
+  await writeFixture(source, fixtureManifest);
+  await install(source, target, "claude");
+
+  const result = await install(source, target, "codex");
+
+  assert.equal(result.plan.conflicts.length, 0);
+  assert.equal(result.lock.targetAgent, "codex");
+  await fs.access(path.join(target, ".codex", "config.toml"));
+  await fs.access(path.join(target, ".agents", "skills", "hello", "SKILL.md"));
+  const status = await inspectStatus(target);
+  assert.equal(status.lock?.targetAgent, "codex");
+});
+
 test("init merges existing agent folders and structured configuration", async () => {
   const source = await tempDir("my-skills-source-");
   const target = await tempDir("my-skills-target-");
