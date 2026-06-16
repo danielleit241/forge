@@ -40,7 +40,7 @@ if count < threshold:
 def _active_phase() -> str:
     """Read the current phase from session-context.json if available."""
     try:
-        ctx_file = Path(os.getcwd()) / ".claude" / "session-data" / "session-context.json"
+        ctx_file = Path(os.getcwd()) / "session-data" / "session-context.json"
         if ctx_file.exists():
             ctx = json.loads(ctx_file.read_text(encoding="utf-8"))
             return ctx.get("phase", "")

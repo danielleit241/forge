@@ -15,6 +15,10 @@ from pathlib import Path
 
 def ensure_dir(path: Path) -> Path:
     path.mkdir(parents=True, exist_ok=True)
+    if path.name == "session-data":
+        gitignore = path / ".gitignore"
+        if not gitignore.exists():
+            gitignore.write_text("*\n!.gitignore\n", encoding="utf-8")
     return path
 
 

@@ -86,7 +86,7 @@ export class CodexAdapter implements ToolkitAdapter {
         await convertHooks(context.sourceRoot, component.id, result);
         break;
       case "config":
-        await convertConfig(context.sourceRoot, component.id, result);
+        await convertConfig(context.sourceRoot, context.targetRoot, component.id, result);
         break;
       default:
         for (const sourcePath of component.paths) {
@@ -159,7 +159,7 @@ async function convertAgents(
     const name = String(parsed.data.name ?? path.basename(sourcePath, ".md"));
     const description = String(parsed.data.description ?? `Migrated agent ${name}`);
     const body = parsed.content.trim();
-    const modelConfig = mapClaudeModel(parsed.data.model);
+    const modelConfig = mapClaudeModel(name, parsed.data.model);
     const toml = [
       `name = ${tomlString(name)}`,
       `description = ${tomlString(description)}`,
@@ -211,6 +211,31 @@ function normalizeCodexHooks(hooks: Record<string, unknown>, result: RenderResul
     }
     hooks[event] = normalizedGroups;
   }
+  ensureCodexPromptCapture(hooks);
+}
+
+function ensureCodexPromptCapture(hooks: Record<string, unknown>): void {
+  const command = `python3 "$(git rev-parse --show-toplevel)/.codex/hooks/session_state.py" user-prompt`;
+  const commandWindows =
+    `powershell -NoProfile -Command '$root = git rev-parse --show-toplevel; ` +
+    `python (Join-Path $root ".codex/hooks/session_state.py") user-prompt'`;
+  const group = {
+    hooks: [
+      {
+        type: "command",
+        command,
+        commandWindows,
+        timeout: 5,
+      },
+    ],
+  };
+  const current = hooks.UserPromptSubmit;
+  if (!Array.isArray(current)) {
+    hooks.UserPromptSubmit = [group];
+    return;
+  }
+  const serialized = JSON.stringify(current);
+  if (!serialized.includes("session_state.py")) current.push(group);
 }
 
 function rewriteHookHandlers(value: unknown): void {
@@ -260,11 +285,31 @@ function extractHookScript(command: string): string | null {
 
 async function convertConfig(
   sourceRoot: string,
+  targetRoot: string,
   component: string,
   result: RenderResult,
 ): Promise<void> {
   const claudeMd = path.join(sourceRoot, "CLAUDE.md");
-  if (await exists(claudeMd)) {
+  const existingAgents = await findExistingInstructionFile(targetRoot, ["AGENTS.md", "agents.md"]);
+  const existingClaude = await findExistingInstructionFile(targetRoot, ["CLAUDE.md", "claude.md"]);
+  if (existingAgents) {
+    result.skipped.push(`${existingAgents} already exists`);
+  } else if (existingClaude) {
+    result.files.push({
+      path: "AGENTS.md",
+      content: Buffer.from(
+        [
+          "# Codex Instructions",
+          "",
+          `Project instructions already live in \`@${existingClaude}\`.`,
+          `Read \`@${existingClaude}\` first and treat it as the source of truth for this project.`,
+          "",
+        ].join("\n"),
+      ),
+      component,
+    });
+    result.converted.push(`${existingClaude} -> AGENTS.md reference`);
+  } else if (await exists(claudeMd)) {
     result.files.push({
       path: "AGENTS.md",
       content: await fs.readFile(claudeMd),
@@ -306,11 +351,19 @@ function tomlMultiline(value: string): string {
   return `'''${value.replaceAll("'''", "''\\'")}'''`;
 }
 
-function mapClaudeModel(value: unknown): string[] {
-  if (value === "haiku") {
+async function findExistingInstructionFile(root: string, candidates: string[]): Promise<string | null> {
+  for (const candidate of candidates) {
+    if (await exists(path.join(root, candidate))) return candidate;
+  }
+  return null;
+}
+
+function mapClaudeModel(name: string, value: unknown): string[] {
+  const normalized = String(value ?? "").toLowerCase();
+  if (name.toLowerCase() === "scout" || normalized.includes("haiku")) {
     return ['model = "gpt-5.4-mini"', 'model_reasoning_effort = "medium"'];
   }
-  if (value === "sonnet" || value === "opus") {
+  if (normalized.includes("sonnet") || normalized.includes("opus")) {
     return ['model = "gpt-5.5"', 'model_reasoning_effort = "high"'];
   }
   return [];

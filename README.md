@@ -1,6 +1,8 @@
 # my-skills
 
-A personal Claude Code configuration — slash commands, sub-agents, skills, and lifecycle hooks that turn Claude into a structured development partner.
+A versioned CLI for installing and migrating a personal AI coding toolkit across Claude Code and Codex.
+
+The toolkit includes slash commands, sub-agents, skills, lifecycle hooks, shared rules, and project configuration. It tracks installed files with checksums so updates are repeatable and local edits are not overwritten silently.
 
 **Principles:** YAGNI · KISS · DRY · Brutal honesty · Challenge every assumption
 
@@ -52,6 +54,10 @@ not replaced. Shared JSON configuration is deep-merged, arrays are deduplicated,
 and unrelated files remain untouched. Other managed-file edits still produce a
 conflict and text diff; use `--force` only when discarding that edit is intentional.
 
+The CLI also merges generated toolkit paths into the project `.gitignore`:
+`.claude/`, `.codex/`, `.agents/`, `CLAUDE.md`, `AGENTS.md`, `.ck.json`,
+`.my-skills.lock.json`, and `session-data/`.
+
 ## Bundles
 
 `toolkit.manifest.json` is the source manifest. The built-in bundles are:
@@ -72,12 +78,15 @@ npx @danielle241/my-skills migrate <project-path> --from claude --to codex
 The Claude adapter preserves the `.claude/` layout. The Codex adapter maps:
 
 - Skills and slash commands to `.agents/skills/`.
-- Sub-agents to `.codex/agents/*.toml`, including Codex model and reasoning defaults derived from the Claude role.
+- Sub-agents to `.codex/agents/*.toml`, including Codex model and reasoning defaults derived from the Claude role. `scout` is pinned to `gpt-5.4-mini` for lower-cost evidence gathering.
 - Hooks to `.codex/hooks.json` and scripts to `.codex/hooks/`; unsupported Claude tool matchers are removed and commands resolve from the Git root on Unix and Windows.
-- `CLAUDE.md` to `AGENTS.md`.
+- `CLAUDE.md` to `AGENTS.md`. If the target project already has an instruction file, the CLI creates a small `@CLAUDE.md` or `@AGENTS.md` bridge instead of duplicating the existing rules.
 - Project defaults to `.codex/config.toml`, with hooks enabled and bounded subagent concurrency.
+- Runtime state to root-level `session-data/`, with `session-data/.gitignore` keeping generated summaries out of Git.
 
 Items without a direct target mapping are reported as `unsupported` rather than silently dropped.
+
+Migration preserves the previous agent files. For example, Claude to Codex creates `.codex/` and `.agents/` while keeping the existing `.claude/` and `CLAUDE.md` files in place. This lets multiple agents share the same project without destructive cleanup.
 
 ## Update And Recovery
 
@@ -94,19 +103,9 @@ By default, `update` and `revert` download the requested package version from
 npm, so they work when the CLI was installed globally or invoked through `npx`.
 Repository maintainers can pass `--source <repository>` to test local SemVer tags.
 
-## Releases
-
-Every release keeps `package.json` and `toolkit.manifest.json` on the same SemVer
-version. Tags matching `v*.*.*` trigger `.github/workflows/release.yml`.
-
-```bash
-npm run release:check
-git tag v2.1.3
-git push origin v2.1.3
-```
-
-The GitHub repository must provide npm trusted publishing or an `NPM_TOKEN`
-secret with publish access to `@danielle241/my-skills`.
+`migrate` preserves files from the previous agent adapter. `update` and `revert`
+still prune files removed from a release when the lockfile checksum proves the
+file was not locally modified.
 
 ---
 
@@ -255,30 +254,11 @@ Applied by `artifact_fold.py` on Read, Grep, and Bash outputs.
 ├── lib/             # shared Python utilities for hooks
 └── settings.json    # hook wiring + permissions
 CLAUDE.md            # project entry point
+session-data/        # generated session summaries, ignored by Git
 ```
 
 ---
-
-## Requirements
-
-- [Claude Code](https://claude.ai/code) CLI
-- Python 3.10+ (for hooks)
-
----
-
-## Installation
-
-### Manual
-
-Copy `.claude/` into any project:
-
-```bash
-cp -r /path/to/my-skills/.claude /path/to/your-project/
-```
-
-For personal preferences that shouldn't be committed, create `CLAUDE.local.md` in the project root (gitignored by Claude Code automatically).
-
-### Typical workflow
+## Typical Workflow
 
 ```
 /ck:brainstorm add user authentication

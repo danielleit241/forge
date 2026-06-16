@@ -11,6 +11,7 @@ export async function buildChangePlan(
   desired: RenderedFile[],
   previous: ToolkitLock | null,
   force: boolean,
+  preservePreviousFiles = false,
 ): Promise<ChangePlan> {
   const writes: RenderedFile[] = [];
   const deletes: string[] = [];
@@ -49,6 +50,10 @@ export async function buildChangePlan(
 
   for (const old of previous?.files ?? []) {
     if (desiredByPath.has(old.path)) continue;
+    if (preservePreviousFiles) {
+      unchanged.push(old.path);
+      continue;
+    }
     const absolute = resolveInside(targetRoot, old.path);
     if (!(await exists(absolute))) continue;
     const current = await fs.readFile(absolute);

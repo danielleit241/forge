@@ -61,10 +61,12 @@ test("Codex adapter converts skills, commands, agents, hooks, and instructions",
     fs.access(path.join(target, ".codex", "agents", "reviewer.toml")),
     fs.access(path.join(target, ".codex", "hooks.json")),
     fs.access(path.join(target, "AGENTS.md")),
+    fs.access(path.join(target, "session-data", ".gitignore")),
   ]);
   const hooks = await fs.readFile(path.join(target, ".codex", "hooks.json"), "utf8");
   assert.match(hooks, /git rev-parse --show-toplevel/);
   assert.match(hooks, /commandWindows/);
+  assert.match(hooks, /session_state\.py/);
   assert.doesNotMatch(hooks, /"async"/);
   assert.doesNotMatch(hooks, /"matcher": "\*"/);
   const agent = await fs.readFile(path.join(target, ".codex", "agents", "reviewer.toml"), "utf8");
@@ -73,18 +75,75 @@ test("Codex adapter converts skills, commands, agents, hooks, and instructions",
   assert.match(config, /\[agents\]\nmax_threads = 6\nmax_depth = 1/);
 });
 
+test("install creates session-data gitignore and merges project gitignore", async () => {
+  const source = await tempDir("my-skills-source-");
+  const target = await tempDir("my-skills-target-");
+  await writeFixture(source, fixtureManifest);
+  await fs.writeFile(path.join(target, ".gitignore"), "dist/\n");
+
+  const result = await install(source, target, "claude");
+
+  assert.equal(result.plan.conflicts.length, 0);
+  assert.equal(await fs.readFile(path.join(target, "session-data", ".gitignore"), "utf8"), "*\n!.gitignore\n");
+  const gitignore = await fs.readFile(path.join(target, ".gitignore"), "utf8");
+  assert.match(gitignore, /^dist\/$/m);
+  assert.match(gitignore, /^\.claude\/$/m);
+  assert.match(gitignore, /^\.my-skills\.lock\.json$/m);
+  assert.match(gitignore, /^session-data\/$/m);
+});
+
+test("migration bridges existing project instruction files", async () => {
+  const source = await tempDir("my-skills-source-");
+  const codexTarget = await tempDir("my-skills-target-");
+  const claudeTarget = await tempDir("my-skills-target-");
+  await writeFixture(source, fixtureManifest);
+  await fs.writeFile(path.join(codexTarget, "CLAUDE.md"), "# Existing Claude rules\n");
+  await fs.writeFile(path.join(claudeTarget, "AGENTS.md"), "# Existing Codex rules\n");
+
+  const codexResult = await install(source, codexTarget, "codex");
+  const claudeResult = await install(source, claudeTarget, "claude");
+
+  assert.equal(codexResult.plan.conflicts.length, 0);
+  assert.equal(claudeResult.plan.conflicts.length, 0);
+  assert.match(await fs.readFile(path.join(codexTarget, "AGENTS.md"), "utf8"), /@CLAUDE\.md/);
+  assert.match(await fs.readFile(path.join(claudeTarget, "CLAUDE.md"), "utf8"), /@AGENTS\.md/);
+});
+
+test("Codex adapter maps scout to the cheap mini model", async () => {
+  const source = await tempDir("my-skills-source-");
+  const target = await tempDir("my-skills-target-");
+  await writeFixture(source, fixtureManifest);
+  await fs.writeFile(
+    path.join(source, ".claude", "agents", "scout.md"),
+    "---\nname: scout\ndescription: Gather evidence.\nmodel: sonnet\n---\n\nScout quickly.\n",
+  );
+
+  const result = await install(source, target, "codex");
+
+  assert.equal(result.plan.conflicts.length, 0);
+  const scout = await fs.readFile(path.join(target, ".codex", "agents", "scout.toml"), "utf8");
+  assert.match(scout, /model = "gpt-5\.4-mini"/);
+});
+
 test("migration changes an installed Claude toolkit to Codex", async () => {
   const source = await tempDir("my-skills-source-");
   const target = await tempDir("my-skills-target-");
   await writeFixture(source, fixtureManifest);
   await install(source, target, "claude");
 
-  const result = await install(source, target, "codex");
+  const result = await install(source, target, "codex", { preservePreviousFiles: true });
 
   assert.equal(result.plan.conflicts.length, 0);
   assert.equal(result.lock.targetAgent, "codex");
+  assert.equal(result.plan.deletes.length, 0);
   await fs.access(path.join(target, ".codex", "config.toml"));
   await fs.access(path.join(target, ".agents", "skills", "hello", "SKILL.md"));
+  await fs.access(path.join(target, ".claude", "skills", "hello", "SKILL.md"));
+  await fs.access(path.join(target, "CLAUDE.md"));
+  const gitignore = await fs.readFile(path.join(target, ".gitignore"), "utf8");
+  assert.match(gitignore, /^\.claude\/$/m);
+  assert.match(gitignore, /^\.codex\/$/m);
+  assert.match(gitignore, /^\.agents\/$/m);
   const status = await inspectStatus(target);
   assert.equal(status.lock?.targetAgent, "codex");
 });
@@ -132,7 +191,12 @@ test("update preserves local keys in mergeable configuration", async () => {
   assert.equal(updated.localOnly, true);
 });
 
-function install(sourceRoot: string, targetRoot: string, targetAgent: "claude" | "codex") {
+function install(
+  sourceRoot: string,
+  targetRoot: string,
+  targetAgent: "claude" | "codex",
+  options: { preservePreviousFiles?: boolean } = {},
+) {
   return installToolkit({
     sourceRoot,
     targetRoot,
@@ -142,5 +206,6 @@ function install(sourceRoot: string, targetRoot: string, targetAgent: "claude" |
     sourceCommit: null,
     dryRun: false,
     force: false,
+    preservePreviousFiles: options.preservePreviousFiles,
   });
 }

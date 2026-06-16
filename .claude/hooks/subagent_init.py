@@ -13,7 +13,7 @@ import re
 import sys
 from pathlib import Path
 
-SESSION_CONTEXT_FILE = ".claude/session-data/session-context.json"
+SESSION_CONTEXT_FILE = "session-data/session-context.json"
 PLANS_DIR = "plans"
 STATUS_ACTIVE = "🟡"
 STATUS_COMPLETE = "✅"
@@ -91,7 +91,7 @@ def main() -> None:
     # inject a terse instruction so subagent output is also compact.
     parent_session_id = os.environ.get("CLAUDE_PARENT_SESSION_ID")
     if parent_session_id:
-        sessions_dir = root / ".claude" / "session-data"
+        sessions_dir = root / "session-data"
         caveman_file = sessions_dir / f"caveman-{parent_session_id}.json"
         try:
             if caveman_file.exists():

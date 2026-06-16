@@ -141,7 +141,7 @@
     "**/Migrations/**",
     "**/TestResults/**",
     "**/coverage/**",
-    "**/.claude/session-data/**",
+    "**/session-data/**",
     "**/*.suo",
     "**/*.user",
     "**/*.lock.json",

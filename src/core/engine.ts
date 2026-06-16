@@ -25,6 +25,7 @@ export interface InstallOptions {
   sourceCommit: string | null;
   dryRun: boolean;
   force: boolean;
+  preservePreviousFiles?: boolean;
 }
 
 export interface InstallResult {
@@ -37,7 +38,13 @@ export async function installToolkit(options: InstallOptions): Promise<InstallRe
   const manifest = await loadManifest(options.sourceRoot);
   const components = selectComponents(manifest, options.bundles);
   const adapter = getAdapter(options.targetAgent);
-  const render = await adapter.render({ sourceRoot: options.sourceRoot, manifest, components });
+  const render = await adapter.render({
+    sourceRoot: options.sourceRoot,
+    targetRoot: options.targetRoot,
+    manifest,
+    components,
+  });
+  addSupportFiles(render.files);
   render.files = await mergeExistingConfig(options.targetRoot, render.files);
   assertUniquePaths(render.files);
   const previous = await readLock(options.targetRoot);
@@ -56,12 +63,48 @@ export async function installToolkit(options: InstallOptions): Promise<InstallRe
     ...render.files,
     { path: LOCK_FILE, content: serializeLock(lock), component: "lockfile" },
   ];
-  const plan = await buildChangePlan(options.targetRoot, desiredWithLock, previousWithLock(previous), options.force);
+  const plan = await buildChangePlan(
+    options.targetRoot,
+    desiredWithLock,
+    previousWithLock(previous),
+    options.force,
+    options.preservePreviousFiles ?? false,
+  );
   if (plan.conflicts.length === 0 && !options.dryRun) {
     await fs.mkdir(options.targetRoot, { recursive: true });
     await applyTransaction(options.targetRoot, plan);
   }
   return { plan, render, lock };
+}
+
+function addSupportFiles(files: RenderedFile[]): void {
+  files.push(
+    {
+      path: "session-data/.gitignore",
+      content: Buffer.from("*\n!.gitignore\n"),
+      component: "session-data",
+    },
+    {
+      path: ".gitignore",
+      content: Buffer.from(
+        [
+          "# my-skills generated files",
+          ".claude/",
+          "CLAUDE.md",
+          "claude.md",
+          ".codex/",
+          ".agents/",
+          "AGENTS.md",
+          "agents.md",
+          ".ck.json",
+          ".my-skills.lock.json",
+          "session-data/",
+          "",
+        ].join("\n"),
+      ),
+      component: "gitignore",
+    },
+  );
 }
 
 function assertUniquePaths(files: RenderedFile[]): void {

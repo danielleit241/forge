@@ -16,11 +16,13 @@ MAX_STDIN = 1024 * 1024
 def main() -> None:
     stdin_data = sys.stdin.read(MAX_STDIN)
     transcript_path = None
+    payload = None
     try:
-        transcript_path = json.loads(stdin_data).get("transcript_path")
+        payload = json.loads(stdin_data)
+        transcript_path = payload.get("transcript_path")
     except Exception:
         transcript_path = os.environ.get("CLAUDE_TRANSCRIPT_PATH")
-    save_state(transcript_path)
+    save_state(transcript_path, payload if isinstance(payload, dict) else None)
 
 
 if __name__ == "__main__":

@@ -65,7 +65,7 @@ def get_claude_dir() -> Path:
 def get_sessions_dir(cwd: str | None = None) -> Path:
     root = find_project_root(cwd)
     if root:
-        return root / ".claude" / SESSION_DATA_DIR
+        return root / SESSION_DATA_DIR
     return get_claude_dir() / SESSION_DATA_DIR
 
 

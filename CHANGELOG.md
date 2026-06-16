@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.1.4
+
+- Preserve files from the previous agent adapter during `migrate` instead of deleting the old `.claude`, `.codex`, `.agents`, `CLAUDE.md`, or `AGENTS.md` outputs.
+- Merge generated toolkit paths into the project `.gitignore`, including agent folders, instruction files, lockfiles, `.ck.json`, and `session-data/`.
+- Add `session-data/.gitignore` automatically and move runtime session state to root-level `session-data/` shared by supported agents.
+- Improve Claude/Codex instruction migration by creating `@CLAUDE.md` or `@AGENTS.md` reference bridge files when project instructions already exist.
+- Capture Codex user prompts through the migrated hook pipeline so session summaries include user messages, not only changed files.
+- Align Codex sub-agent model rendering with Claude frontmatter and force the `scout` agent to `gpt-5.4-mini`.
+- Replace the packaged `CLAUDE.md` template with concise behavioral guidelines focused on assumptions, simplicity, surgical edits, and verification.
+- Update CK workflow skills, add the `ck-spec` skill, and include the upstream `agent-skills` reference as a tracked submodule for future migration work.
+
 ## 2.1.3
 
 - Infer migration source from the lockfile so onboarding cannot select an agent that contradicts the installed toolkit.

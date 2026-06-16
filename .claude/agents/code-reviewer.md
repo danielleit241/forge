@@ -91,6 +91,11 @@ Issue: {what is wrong — be specific}
 Fix: {concrete recommendation — one sentence}
 ```
 
+**Severity expectations for the author:**
+- `[CRITICAL]` / `[HIGH]` — must be resolved before APPROVED verdict
+- `[MEDIUM]` — should be resolved; may proceed with documented justification
+- `[LOW]` — optional; author may address at discretion
+
 ### Summary
 
 ```

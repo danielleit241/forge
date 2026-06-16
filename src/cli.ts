@@ -260,7 +260,7 @@ async function runMigrate(
     throw new Error(`Lockfile target is ${status.lock.targetAgent}, not ${from}`);
   }
   const source = await resolveSource(sourceRoot, "current");
-  await applyInstall(source, targetRoot, to, status.lock?.bundles ?? bundles, dryRun, force, true);
+  await applyInstall(source, targetRoot, to, status.lock?.bundles ?? bundles, dryRun, force, true, true);
 }
 
 async function applyInstall(
@@ -271,6 +271,7 @@ async function applyInstall(
   dryRun: boolean,
   force: boolean,
   migrationReport = false,
+  preservePreviousFiles = false,
 ): Promise<void> {
   try {
     const result = await installToolkit({
@@ -282,6 +283,7 @@ async function applyInstall(
       sourceCommit: source.commit,
       dryRun,
       force,
+      preservePreviousFiles,
     });
     printPlan(result.plan, dryRun);
     if (migrationReport) printMigration(result.render);

@@ -22,6 +22,18 @@ Work through every category. Only report findings you are >80% confident are rea
 - Input validation must be on every mutating operation — is it in the plan?
 - Data exposure — does the plan return internal entities or stack traces to callers?
 - Injection — any raw SQL, shell exec, or template rendering without sanitization?
+- SSRF — if the plan includes server-side URL fetching (webhooks, import-from-URL, link previews): is there an allowlist or private IP rejection? No allowlist = CRITICAL.
+
+**For features with auth, payment, or external API integration — run STRIDE over each trust boundary:**
+
+| Threat | Question | Flag if... |
+|--------|----------|------------|
+| **S**poofing | Can someone impersonate a user or service? | No signature verification on webhooks; no token binding |
+| **T**ampering | Can data be altered in transit or at rest? | Missing integrity checks; unparameterized queries |
+| **R**epudiation | Can an action be denied later? | No audit log for security-sensitive operations |
+| **I**nfo disclosure | Can sensitive data leak? | Errors expose internals; over-fetched fields returned to caller |
+| **D**oS | Can the feature be overwhelmed? | No rate limiting; no payload size cap; no timeout |
+| **E**levation | Can a user gain rights beyond their role? | Privilege checks missing; admin actions reachable by non-admin |
 
 ### HIGH — Hidden Assumptions
 
@@ -73,8 +85,8 @@ Fix: [Concrete recommendation — one sentence]
 Verdict: ACCEPTED | NOTED
 ```
 
-- Use `ACCEPTED` for findings that require a plan change
-- Use `NOTED` for findings that are risks to acknowledge but not necessarily change
+- Use `ACCEPTED` for findings that require a plan change — **must be addressed before cook starts**
+- Use `NOTED` for findings that are risks to acknowledge — cook may proceed but must document
 - Use `REJECTED` for findings that don't hold up after closer inspection (explain why)
 
 End with a summary:

@@ -1,39 +1,65 @@
-# my-skills
+# CLAUDE.md
 
-## Core Principles
+Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 
-YAGNI · KISS · DRY · Brutal honesty over diplomacy · Challenge every assumption
+**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 
-## Structure
+## 1. Think Before Coding
 
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
+
+Before implementing:
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them - don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+## 2. Simplicity First
+
+**Minimum code that solves the problem. Nothing speculative.**
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+## 3. Surgical Changes
+
+**Touch only what you must. Clean up only your own mess.**
+
+When editing existing code:
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it - don't delete it.
+
+When your changes create orphans:
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
+
+The test: Every changed line should trace directly to the user's request.
+
+## 4. Goal-Driven Execution
+
+**Define success criteria. Loop until verified.**
+
+Transform tasks into verifiable goals:
+- "Add validation" -> "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" -> "Write a test that reproduces it, then make it pass"
+- "Refactor X" -> "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan:
 ```
-.claude/
-  agents/     # sub-agents spawned by commands
-  commands/   # slash commands (/plan, /cook, /fix, /learn, /code-review, /docs-fe)
-  skills/     # behavioral guidance loaded by skill system
-  rules/      # path-scoped design principles (lazy-load)
-  hooks/      # shell hooks for lifecycle events
+1. [Step] -> verify: [check]
+2. [Step] -> verify: [check]
+3. [Step] -> verify: [check]
 ```
 
-## Rules
+Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
-Path-scoped — each file loads only when touching its directory:
+---
 
-| File | Activates for |
-|------|---------------|
-| `.claude/rules/agents.md` | `.claude/agents/**` |
-| `.claude/rules/commands.md` | `.claude/commands/**` |
-| `.claude/rules/skills.md` | `.claude/skills/**` |
-
-## Config
-
-`.ck.json` — project-level config for hooks and pipeline behavior:
-- `cavemanMode` — thresholds for auto-triggering caveman terse mode
-- `artifactFolding` — thresholds for folding large tool outputs
-- `simplify.gate` — enable or disable the ship-intent diff-size gate
-- `simplify.threshold` — diff-size limits used by the gate
-- `codingLevel` — response verbosity (-1 = auto)
-
-## Personal overrides
-
-`CLAUDE.local.md` (gitignored) — personal preferences that shouldn't be committed.
+**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.

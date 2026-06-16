@@ -47,3 +47,5 @@ tmp/*
 
 # Agent backups created during parity work
 .claude/agents/backup-pre-parity/
+
+.references/

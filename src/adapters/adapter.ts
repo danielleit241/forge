@@ -7,6 +7,7 @@ import type {
 
 export interface AdapterContext {
   sourceRoot: string;
+  targetRoot: string;
   manifest: ToolkitManifest;
   components: ToolkitComponent[];
 }

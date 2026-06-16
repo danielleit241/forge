@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import matter from "gray-matter";
 import type { RenderResult, RenderedFile } from "../types.js";
-import { listFiles } from "../core/files.js";
+import { exists, listFiles } from "../core/files.js";
 import { normalizeRelative } from "../core/paths.js";
 import type { AdapterContext, ToolkitAdapter } from "./adapter.js";
 
@@ -20,9 +20,13 @@ export class ClaudeAdapter implements ToolkitAdapter {
           ? await listFiles(context.sourceRoot, sourcePath)
           : [normalizeRelative(sourcePath)];
         for (const relative of paths) {
+          const content = relative === "CLAUDE.md"
+            ? await renderClaudeInstructions(context, relative)
+            : await fs.readFile(path.join(context.sourceRoot, relative));
+          if (!content) continue;
           files.push({
             path: relative,
-            content: await fs.readFile(path.join(context.sourceRoot, relative)),
+            content,
             component: component.id,
           });
           copied.push(relative);
@@ -53,4 +57,28 @@ export class ClaudeAdapter implements ToolkitAdapter {
     }
     return errors;
   }
+}
+
+async function renderClaudeInstructions(context: AdapterContext, relative: string): Promise<Buffer | null> {
+  const agentsFile = await findExistingInstructionFile(context.targetRoot, ["AGENTS.md", "agents.md"]);
+  const claudeFile = await findExistingInstructionFile(context.targetRoot, ["CLAUDE.md", "claude.md"]);
+  if (agentsFile && !claudeFile) {
+    return Buffer.from(
+      [
+        "# Claude Code Instructions",
+        "",
+        `Project instructions already live in \`@${agentsFile}\`.`,
+        `Read \`@${agentsFile}\` first and treat it as the source of truth for this project.`,
+        "",
+      ].join("\n"),
+    );
+  }
+  return fs.readFile(path.join(context.sourceRoot, relative));
+}
+
+async function findExistingInstructionFile(root: string, candidates: string[]): Promise<string | null> {
+  for (const candidate of candidates) {
+    if (await exists(path.join(root, candidate))) return candidate;
+  }
+  return null;
 }

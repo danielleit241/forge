@@ -6,7 +6,7 @@ Fires on startup, resume, clear, and compact. Loads coding level and previous
 session state. Skips heavy loading for subagents (detected via
 CLAUDE_PARENT_SESSION_ID); subagent_init.py handles those.
 
-Writes .claude/session-data/session-context.json for subagent_init to read.
+Writes session-data/session-context.json for subagent_init to read.
 """
 import json
 import os

@@ -2,8 +2,8 @@
 """
 Session State — persist and restore session context.
 
-State file: .claude/session-data/.last-state.md
-Archives:   .claude/session-data/archive/*.md  (max 10)
+State file: session-data/.last-state.md
+Archives:   session-data/archive/*.md  (max 10)
 
 Usage as script:
   python session-state.py save   # reads stdin JSON for transcript_path
@@ -25,6 +25,7 @@ _log = HookLogger("session-state")
 
 STATE_FILENAME = ".last-state.md"
 ARCHIVE_DIR_NAME = "archive"
+PROMPT_LOG_FILENAME = "user-prompts.jsonl"
 MAX_ARCHIVES = 10
 MAX_STDIN = 1024 * 1024
 
@@ -133,12 +134,134 @@ def _extract_from_transcript(path: str) -> dict:
     return result
 
 
+def _empty_transcript() -> dict:
+    return {"userMessages": [], "toolsUsed": set(), "filesModified": set(), "totalMessages": 0}
+
+
+def _detect_agent(payload: dict | None = None) -> str:
+    explicit = (
+        os.environ.get("CK_AGENT")
+        or os.environ.get("MY_SKILLS_AGENT")
+        or (payload or {}).get("agent")
+        or (payload or {}).get("agentName")
+        or (payload or {}).get("source")
+    )
+    if explicit:
+        return str(explicit)
+    script_path = str(Path(__file__).as_posix())
+    if "/.codex/" in script_path or os.environ.get("CODEX_HOME") or os.environ.get("CODEX_SANDBOX"):
+        return "codex"
+    if "/.claude/" in script_path or any(key.startswith("CLAUDE_") for key in os.environ):
+        return "claude-code"
+    return "unknown"
+
+
+def _extract_text(value) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        text = strip_ansi(value).strip()
+        return [text] if text else []
+    if isinstance(value, list):
+        output: list[str] = []
+        for item in value:
+            output.extend(_extract_text(item))
+        return output
+    if isinstance(value, dict):
+        for key in ("text", "prompt", "user_prompt", "message", "content", "input"):
+            if key in value:
+                return _extract_text(value.get(key))
+    return []
+
+
+def _extract_from_payload(payload: dict | None) -> dict:
+    result = _empty_transcript()
+    if not payload:
+        return result
+
+    messages: list[str] = []
+    for key in ("prompt", "user_prompt", "userPrompt", "input", "message", "content"):
+        messages.extend(_extract_text(payload.get(key)))
+    message = payload.get("message")
+    if isinstance(message, dict) and message.get("role") == "user":
+        messages.extend(_extract_text(message.get("content")))
+
+    for message_text in messages:
+        cleaned = message_text.strip()
+        if cleaned and not cleaned.startswith("<"):
+            result["userMessages"].append(cleaned[:200])
+
+    for key in ("tool_name", "name"):
+        if payload.get(key):
+            result["toolsUsed"].add(str(payload[key]))
+
+    for container_key in ("tool_input", "input", "changes", "files", "diff"):
+        value = payload.get(container_key)
+        if isinstance(value, dict):
+            for file_key in ("file_path", "path", "filename"):
+                if value.get(file_key):
+                    result["filesModified"].add(str(value[file_key]))
+        elif isinstance(value, list):
+            for item in value:
+                if isinstance(item, dict):
+                    for file_key in ("file_path", "path", "filename"):
+                        if item.get(file_key):
+                            result["filesModified"].add(str(item[file_key]))
+
+    result["totalMessages"] = len(result["userMessages"])
+    result["toolsUsed"] = sorted(result["toolsUsed"])[:20]
+    result["filesModified"] = list(result["filesModified"])[:30]
+    result["userMessages"] = result["userMessages"][-10:]
+    return result
+
+
+def _merge_transcripts(primary: dict, secondary: dict) -> dict:
+    return {
+        "userMessages": (primary.get("userMessages") or secondary.get("userMessages") or [])[-10:],
+        "toolsUsed": sorted(set(primary.get("toolsUsed") or []) | set(secondary.get("toolsUsed") or []))[:20],
+        "filesModified": list(dict.fromkeys((primary.get("filesModified") or []) + (secondary.get("filesModified") or [])))[:30],
+        "totalMessages": max(primary.get("totalMessages") or 0, secondary.get("totalMessages") or 0),
+    }
+
+
+def _record_prompt(state_dir: Path, payload: dict | None, agent: str) -> None:
+    extracted = _extract_from_payload(payload)
+    if not extracted["userMessages"]:
+        return
+    log_file = state_dir / PROMPT_LOG_FILENAME
+    timestamp = get_datetime_string()
+    with open(log_file, "a", encoding="utf-8") as fh:
+        for message in extracted["userMessages"]:
+            fh.write(json.dumps({"at": timestamp, "agent": agent, "message": message}, ensure_ascii=False) + "\n")
+
+
+def _read_prompt_log(state_dir: Path, limit: int = 10) -> dict:
+    log_file = state_dir / PROMPT_LOG_FILENAME
+    result = _empty_transcript()
+    if not log_file.exists():
+        return result
+    messages: list[str] = []
+    try:
+        for line in log_file.read_text(encoding="utf-8", errors="replace").splitlines()[-limit:]:
+            entry = json.loads(line)
+            agent = entry.get("agent", "unknown")
+            message = str(entry.get("message", "")).strip()
+            if message:
+                messages.append(f"[{agent}] {message}")
+    except Exception:
+        return result
+    result["userMessages"] = messages[-limit:]
+    result["totalMessages"] = len(result["userMessages"])
+    return result
+
+
 # ── state file builder ─────────────────────────────────────────────────────────
 
-def _build_state(transcript: dict, git: dict, plan: str, timestamp: str, project_name: str) -> str:
+def _build_state(transcript: dict, git: dict, plan: str, timestamp: str, project_name: str, agent: str) -> str:
     lines = [
         "# Session State",
         f"**Updated:** {timestamp}",
+        f"**Agent:** [{agent}]",
         f"**Project:** {project_name}",
         f"**Branch:** {git['branch']}",
         f"**Worktree:** {os.getcwd()}",
@@ -154,11 +277,12 @@ def _build_state(transcript: dict, git: dict, plan: str, timestamp: str, project
         lines += ["## Active Plan", plan, ""]
 
     if transcript["userMessages"] or transcript["filesModified"]:
-        lines.append("## Session Summary")
+        lines.append(f"## Session Summary [{agent}]")
         if transcript["userMessages"]:
             lines.append("### Tasks")
             for msg in transcript["userMessages"]:
-                lines.append(f"- {msg.replace('\n', ' ')}")
+                safe_msg = msg.replace("\n", " ")
+                lines.append(f"- {safe_msg}")
             lines.append("")
         if transcript["filesModified"]:
             lines.append("### Files Modified")
@@ -198,22 +322,28 @@ def _rotate(state_dir: Path) -> None:
 
 # ── public API ─────────────────────────────────────────────────────────────────
 
-def save_state(transcript_path: str | None = None) -> None:
+def save_state(transcript_path: str | None = None, payload: dict | None = None) -> None:
     state_dir = get_sessions_dir()
     ensure_dir(state_dir)
+    agent = _detect_agent(payload)
+    _record_prompt(state_dir, payload, agent)
 
     transcript = (
         _extract_from_transcript(transcript_path)
         if transcript_path and Path(transcript_path).exists()
-        else {"userMessages": [], "toolsUsed": [], "filesModified": [], "totalMessages": 0}
+        else _empty_transcript()
     )
+    payload_transcript = _extract_from_payload(payload)
+    if not transcript["userMessages"]:
+        payload_transcript = _merge_transcripts(payload_transcript, _read_prompt_log(state_dir))
+    transcript = _merge_transcripts(transcript, payload_transcript)
     git = _get_git_info()
     plan = _read_active_plan()
     timestamp = get_datetime_string()
     project_name = get_project_name() or "unknown"
 
     _rotate(state_dir)
-    content = _build_state(transcript, git, plan, timestamp, project_name)
+    content = _build_state(transcript, git, plan, timestamp, project_name, agent)
     (state_dir / STATE_FILENAME).write_text(content, encoding="utf-8")
     _log.info(f"Saved → {STATE_FILENAME}")
 
@@ -246,11 +376,13 @@ def main() -> None:
     else:
         stdin_data = sys.stdin.read(MAX_STDIN)
         transcript_path = None
+        payload = None
         try:
-            transcript_path = json.loads(stdin_data).get("transcript_path")
+            payload = json.loads(stdin_data)
+            transcript_path = payload.get("transcript_path")
         except Exception:
             transcript_path = os.environ.get("CLAUDE_TRANSCRIPT_PATH")
-        save_state(transcript_path)
+        save_state(transcript_path, payload if isinstance(payload, dict) else None)
 
 
 if __name__ == "__main__":
