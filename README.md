@@ -75,10 +75,16 @@ npx @danielle241/my-skills migrate <project-path> --from claude --to codex --dry
 npx @danielle241/my-skills migrate <project-path> --from claude --to codex
 ```
 
+The setup wizard requires base skills for the source agent before migration. For
+Claude this means `.claude/skills/`; for Codex this means `.agents/skills/`.
+For now, interactive setup migration only migrates the fixed packaged skills.
+Project-specific custom pipelines, commands, agents, and hooks are intentionally
+left in place and are not converted automatically yet.
+
 The Claude adapter preserves the `.claude/` layout. The Codex adapter maps:
 
 - Skills and slash commands to `.agents/skills/`.
-- Sub-agents to `.codex/agents/*.toml`, including Codex model and reasoning defaults derived from the Claude role. `scout` is pinned to `gpt-5.4-mini` for lower-cost evidence gathering.
+- Sub-agents to `.codex/agents/*.toml`, including required `name`, `description`, and `developer_instructions` fields, Codex model and reasoning defaults, read-only sandboxing for exploration/review agents, and display nicknames for parallel spawned agents. `scout` is pinned to `gpt-5.4-mini` for lower-cost evidence gathering.
 - Hooks to `.codex/hooks.json` and scripts to `.codex/hooks/`; unsupported Claude tool matchers are removed and commands resolve from the Git root on Unix and Windows.
 - `CLAUDE.md` to `AGENTS.md`. If the target project already has an instruction file, the CLI creates a small `@CLAUDE.md` or `@AGENTS.md` bridge instead of duplicating the existing rules.
 - Project defaults to `.codex/config.toml`, with hooks enabled and bounded subagent concurrency.

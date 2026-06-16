@@ -71,6 +71,9 @@ test("Codex adapter converts skills, commands, agents, hooks, and instructions",
   assert.doesNotMatch(hooks, /"matcher": "\*"/);
   const agent = await fs.readFile(path.join(target, ".codex", "agents", "reviewer.toml"), "utf8");
   assert.match(agent, /model = "gpt-5\.5"/);
+  assert.match(agent, /sandbox_mode = "read-only"/);
+  assert.match(agent, /nickname_candidates = \["Reviewer Alpha", "Reviewer Delta", "Reviewer Echo"\]/);
+  assert.match(agent, /Do not spawn child agents unless the parent explicitly asks/);
   const config = await fs.readFile(path.join(target, ".codex", "config.toml"), "utf8");
   assert.match(config, /\[agents\]\nmax_threads = 6\nmax_depth = 1/);
 });
@@ -123,6 +126,7 @@ test("Codex adapter maps scout to the cheap mini model", async () => {
   assert.equal(result.plan.conflicts.length, 0);
   const scout = await fs.readFile(path.join(target, ".codex", "agents", "scout.toml"), "utf8");
   assert.match(scout, /model = "gpt-5\.4-mini"/);
+  assert.match(scout, /sandbox_mode = "read-only"/);
 });
 
 test("migration changes an installed Claude toolkit to Codex", async () => {

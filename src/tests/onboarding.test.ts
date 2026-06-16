@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import path from "node:path";
 import test from "node:test";
-import { inferMigrationSource } from "../core/onboarding.js";
+import { hasBaseSkills, inferMigrationSource } from "../core/onboarding.js";
+import { tempDir } from "./helpers.js";
 
 test("migration source prefers the lockfile over detected folders", () => {
   assert.equal(inferMigrationSource("claude", ["codex"]), "claude");
@@ -15,4 +18,16 @@ test("migration source uses a single detected agent without a lockfile", () => {
 test("migration source remains selectable when detection is ambiguous", () => {
   assert.equal(inferMigrationSource(undefined, []), undefined);
   assert.equal(inferMigrationSource(undefined, ["claude", "codex"]), undefined);
+});
+
+test("migration requires existing base skills for the source agent", async () => {
+  const target = await tempDir("my-skills-onboarding-");
+  assert.equal(await hasBaseSkills(target, "claude"), false);
+
+  await fs.mkdir(path.join(target, ".claude", "skills", "hello"), { recursive: true });
+  assert.equal(await hasBaseSkills(target, "claude"), true);
+  assert.equal(await hasBaseSkills(target, "codex"), false);
+
+  await fs.mkdir(path.join(target, ".agents", "skills", "hello"), { recursive: true });
+  assert.equal(await hasBaseSkills(target, "codex"), true);
 });

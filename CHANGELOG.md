@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.5
+
+- Render Codex custom agents according to the current subagents guidance: read-only sandboxing for exploration/review agents, display nicknames for spawned agent threads, and a Codex subagent contract that keeps delegated work scoped and summary-oriented.
+- Fix Windows npm subprocess handling used by `status`, `update`, and `revert` so global installs do not fail with `spawn EINVAL`.
+- Require existing source-agent base skills before interactive migration and keep setup migration scoped to fixed packaged skills for now.
+
 ## 2.1.4
 
 - Preserve files from the previous agent adapter during `migrate` instead of deleting the old `.claude`, `.codex`, `.agents`, `CLAUDE.md`, or `AGENTS.md` outputs.

@@ -158,13 +158,18 @@ async function convertAgents(
     const parsed = matter(raw);
     const name = String(parsed.data.name ?? path.basename(sourcePath, ".md"));
     const description = String(parsed.data.description ?? `Migrated agent ${name}`);
-    const body = parsed.content.trim();
+    const tools = parseStringArray(parsed.data.tools);
+    const body = buildCodexAgentInstructions(parsed.content.trim(), name, tools);
     const modelConfig = mapClaudeModel(name, parsed.data.model);
+    const sandboxConfig = mapSandboxMode(name, tools);
+    const nicknames = nicknameCandidates(name);
     const toml = [
       `name = ${tomlString(name)}`,
       `description = ${tomlString(description)}`,
-      `developer_instructions = ${tomlMultiline(body)}`,
       ...modelConfig,
+      ...sandboxConfig,
+      `developer_instructions = ${tomlMultiline(body)}`,
+      `nickname_candidates = ${tomlArray(nicknames)}`,
       "",
     ].join("\n");
     const targetPath = `.codex/agents/${name}.toml`;
@@ -347,8 +352,54 @@ function tomlString(value: string): string {
   return JSON.stringify(value);
 }
 
+function tomlArray(values: string[]): string {
+  return `[${values.map(tomlString).join(", ")}]`;
+}
+
 function tomlMultiline(value: string): string {
   return `'''${value.replaceAll("'''", "''\\'")}'''`;
+}
+
+function parseStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string");
+}
+
+function buildCodexAgentInstructions(body: string, name: string, tools: string[]): string {
+  const readOnly = shouldUseReadOnlySandbox(name, tools);
+  const contract = [
+    "## Codex Subagent Contract",
+    "",
+    "- Run as a focused spawned Codex custom agent. Stay inside the role described by your name and description.",
+    "- Do not spawn child agents unless the parent explicitly asks for nested delegation.",
+    "- Return distilled findings, decisions, changed files, and verification results. Do not dump raw logs unless they are the direct evidence needed.",
+    "- Prefer targeted reads/searches and cite file paths or symbols for claims about the codebase.",
+    readOnly
+      ? "- Operate read-only: gather evidence and recommendations only; do not edit files or run commands whose purpose is to change project state."
+      : "- Edit only when the parent task and this agent role require it; keep changes narrow and report exactly what changed.",
+  ];
+  return `${body}\n\n${contract.join("\n")}`.trim();
+}
+
+function mapSandboxMode(name: string, tools: string[]): string[] {
+  return shouldUseReadOnlySandbox(name, tools) ? ['sandbox_mode = "read-only"'] : [];
+}
+
+function shouldUseReadOnlySandbox(name: string, tools: string[]): boolean {
+  const normalizedName = name.toLowerCase();
+  if (normalizedName.includes("git-manager")) return false;
+  if (tools.some((tool) => tool === "Write" || tool === "Edit")) return false;
+  return true;
+}
+
+function nicknameCandidates(name: string): string[] {
+  const words = name
+    .replace(/[_-]+/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase());
+  const label = words.join(" ") || "Agent";
+  return [`${label} Alpha`, `${label} Delta`, `${label} Echo`];
 }
 
 async function findExistingInstructionFile(root: string, candidates: string[]): Promise<string | null> {

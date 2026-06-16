@@ -51,8 +51,7 @@ export async function resolvePackageSource(
 ): Promise<ResolvedSource> {
   const version = requested === "latest" ? await latestPackageVersion(packageName) : normalizeVersion(requested);
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "my-skills-package-"));
-  const { stdout } = await execFileAsync(
-    npmCommand(),
+  const { stdout } = await execNpm(
     ["pack", `${packageName}@${version}`, "--silent", "--pack-destination", tempRoot],
     { cwd: tempRoot },
   );
@@ -68,7 +67,7 @@ export async function resolvePackageSource(
 }
 
 export async function latestPackageVersion(packageName: string): Promise<string> {
-  const { stdout } = await execFileAsync(npmCommand(), ["view", packageName, "version", "--json"]);
+  const { stdout } = await execNpm(["view", packageName, "version", "--json"]);
   const version = JSON.parse(stdout) as string;
   if (!semver.valid(version)) throw new Error(`Registry returned an invalid version: ${version}`);
   return version;
@@ -99,6 +98,16 @@ function normalizeVersion(value: string): string {
   return version;
 }
 
-function npmCommand(): string {
-  return process.platform === "win32" ? "npm.cmd" : "npm";
+function execNpm(
+  args: string[],
+  options: { cwd?: string } = {},
+): Promise<{ stdout: string; stderr: string }> {
+  const execOptions = { ...options, encoding: "utf8" as const };
+  if (process.platform === "win32") {
+    return execFileAsync("cmd.exe", ["/d", "/s", "/c", "npm.cmd", ...args], execOptions) as Promise<{
+      stdout: string;
+      stderr: string;
+    }>;
+  }
+  return execFileAsync("npm", args, execOptions) as Promise<{ stdout: string; stderr: string }>;
 }

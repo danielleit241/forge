@@ -53,5 +53,7 @@ export const fixtureManifest: ToolkitManifest = {
   ],
   bundles: {
     full: { description: "Full", components: ["core", "skills", "commands", "agents", "hooks"] },
+    development: { description: "Development", components: ["core", "skills", "commands", "agents"] },
+    skills: { description: "Skills", components: ["skills"] },
   },
 };

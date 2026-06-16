@@ -1,4 +1,5 @@
 import path from "node:path";
+import fs from "node:fs/promises";
 import { stdin, stdout } from "node:process";
 import * as p from "@clack/prompts";
 import pc from "picocolors";
@@ -88,13 +89,19 @@ export async function runOnboarding(defaultTarget = "."): Promise<OnboardingSele
         ],
         initialValue: detected[0] ?? "claude",
       }));
+    if (!(await hasBaseSkills(targetRoot, from))) {
+      throw new Error(
+        `Migration requires existing base skills for ${agentLabel(from)}. Run init first or install ${agentSkillsPath(from)} before migrating.`,
+      );
+    }
     const to = from === "claude" ? "codex" : "claude";
     p.note(
       `${agentLabel(from)} ${pc.dim("->")} ${agentLabel(to)}`,
       lock ? "Migration from lockfile" : "Migration",
     );
+    p.note("Only fixed base skills will be migrated for now.", "Migration scope");
     await confirmSelection(targetRoot, action);
-    return { action, targetRoot, from, to, bundles: ["full"] };
+    return { action, targetRoot, from, to, bundles: ["skills"] };
   }
   await confirmSelection(targetRoot, action);
   return { action, targetRoot, bundles: ["full"] };
@@ -117,6 +124,21 @@ async function confirmSelection(targetRoot: string, action: OnboardingAction): P
     throw new Error("Setup cancelled");
   }
   p.outro(pc.green("Configuration complete"));
+}
+
+export async function hasBaseSkills(targetRoot: string, agent: AgentName): Promise<boolean> {
+  const skillsRoot = path.join(targetRoot, agentSkillsPath(agent));
+  if (!(await exists(skillsRoot))) return false;
+  try {
+    const entries = await fs.readdir(skillsRoot, { withFileTypes: true });
+    return entries.some((entry) => entry.isDirectory());
+  } catch {
+    return false;
+  }
+}
+
+function agentSkillsPath(agent: AgentName): string {
+  return agent === "claude" ? ".claude/skills" : ".agents/skills";
 }
 
 function unwrap<T>(value: T | symbol): T {
